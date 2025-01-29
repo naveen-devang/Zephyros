@@ -1,6 +1,6 @@
 {
-    "name": "browser",
-    "version": "1.0.0",
+    "name": "zephyros",
+    "version": "0.0.1",
     "main": "src/main.js",
     "scripts": {
         "start": "electron ."
@@ -12,7 +12,49 @@
     },
     "devDependencies": {
         "autoprefixer": "^10.4.20",
+        "electron-builder": "^25.1.8",
         "postcss": "^8.5.1",
         "tailwindcss": "^4.0.0"
+    },
+    "build": {
+        "appId": "com.naveen-devang.zephyros",
+        "productName": "Zephyros",
+        "copyright": "© 2025 Naveen Devang",
+        "directories": {
+            "output": "dist"
+        },
+        "files": [
+            "build/**/*",
+            "node_modules/**/*",
+            "package.json"
+        ],
+        "win": {
+            "target": "nsis",
+            "icon": "build/icon.ico",
+            "publisherName": "Naveen Devang",
+            "artifactName": "${productName}-Setup-${version}.exe"
+        },
+        "nsis": {
+            "oneClick": false,
+            "allowToChangeInstallationDirectory": true,
+            "installerIcon": "build/installer.ico",
+            "uninstallerIcon": "build/uninstaller.ico",
+            "license": "build/license.txt",
+            "createDesktopShortcut": "always",
+            "createStartMenuShortcut": true,
+            "shortcutName": "Zephyros"
+          },
+          "mac": {
+            "target": "dmg",
+            "icon": "build/icon.icns",
+            "hardenedRuntime": true,
+            "entitlements": "build/entitlements.plist",
+            "entitlementsInherit": "build/entitlements.plist"
+          },
+          "linux": {
+            "target": ["AppImage", "deb"],
+            "icon": "build/icons",
+            "category": "Utility"
+          }
     }
 }

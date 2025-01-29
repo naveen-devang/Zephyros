@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html class="h-full">
 <head>
-  <title>Browser</title>
+  <title>Zephyros</title>
   <script src="renderer.js"></script>
   <script src="https://cdn.tailwindcss.com"></script>
 </head>
@@ -114,6 +114,10 @@
         align-items: center;
         justify-content: space-between;
         border: 1px solid transparent;
+        user-select: none;
+    }
+    .drag-over {
+      border: 2px solid #3b82f6 !important;
     }
 
     .tab.active {
@@ -191,6 +195,23 @@
     gap: 8px;
     padding: 8px;
 }
+
+.volume-waves {
+    opacity: 1;
+    transition: opacity 0.2s;
+  }
+  
+  .muted .volume-waves {
+    opacity: 0;
+  }
+  
+  .media-mute-button {
+    color: #2563eb;
+  }
+  
+  .media-mute-button:hover {
+    background-color: rgba(37, 99, 235, 0.1);
+  }
 
     #bookmarks-section.open {
       transform: translateX(0);

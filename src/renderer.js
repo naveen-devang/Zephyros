@@ -19,7 +19,17 @@ async function createTab(url = 'https://www.google.com') {
   // Create tab button
   const tabButton = document.createElement('div');
   tabButton.className = 'tab flex items-center gap-2 px-4 py-2 bg-slate-100 hover:bg-slate-200 rounded-t-lg cursor-pointer transition-colors';
+  tabButton.draggable = true; // Make tab draggable
   tabButton.innerHTML = `
+      <span class="tab-media-indicator hidden">
+        <button class="media-mute-button p-1 hover:bg-slate-300 rounded-full transition-colors">
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="volume-icon">
+            <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+            <path class="volume-waves" d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path>
+          </svg>
+        </button>
+      </span>
+      <span class="tab-favicon hidden"></span>
       <span class="tab-title text-sm truncate max-w-[140px]">New Tab</span>
       <button class="tab-close flex items-center justify-center w-5 h-5 rounded-full hover:bg-slate-300 transition-colors" onclick="event.stopPropagation(); closeTab('${tabId}')">
           <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -27,8 +37,21 @@ async function createTab(url = 'https://www.google.com') {
               <line x1="6" y1="6" x2="18" y2="18"></line>
           </svg>
       </button>
-  `;  
+  `;
+  tabButton.addEventListener('dragstart', handleDragStart);
+  tabButton.addEventListener('dragend', handleDragEnd);
+  tabButton.addEventListener('dragover', handleDragOver);
+  tabButton.addEventListener('drop', handleDrop);
+  tabButton.addEventListener('dragenter', handleDragEnter);
+  tabButton.addEventListener('dragleave', handleDragLeave);
   tabButton.onclick = () => activateTab(tabId);
+
+  // Add mute button click handler
+  const muteButton = tabButton.querySelector('.media-mute-button');
+  muteButton.onclick = (e) => {
+    e.stopPropagation();
+    toggleMute(tabId);
+  };
   
   // Get the tab bar
   const tabBar = document.getElementById('tab-bar');
@@ -60,8 +83,18 @@ async function createTab(url = 'https://www.google.com') {
   document.getElementById('webviews').appendChild(webview);
 
   // Create tab object immediately but mark it as not ready
-  const tab = { id: tabId, webview, button: tabButton, isReady: false, title: 'New Tab' };
+  const tab = { id: tabId, webview, button: tabButton, isReady: false, title: 'New Tab', isAudioPlaying: false, isMuted: false };
   tabs.push(tab);
+
+  // Add audio event listeners
+  webview.addEventListener('media-started-playing', () => {
+    updateTabAudioState(tabId, true);
+  });
+
+  webview.addEventListener('media-paused', () => {
+    updateTabAudioState(tabId, false);
+  });
+  
 
   // Add fullscreen event listeners
   webview.addEventListener('enter-html-full-screen', () => {
@@ -82,6 +115,7 @@ async function createTab(url = 'https://www.google.com') {
     }
     return tabId;
   }
+  
 
   // Set up dom-ready handler
   webview.addEventListener('dom-ready', () => {
@@ -160,6 +194,191 @@ async function createTab(url = 'https://www.google.com') {
   });
 
   return tabId;
+}
+
+let draggedTab = null;
+let dropIndicator = null;
+
+function createDropIndicator() {
+  const indicator = document.createElement('div');
+  indicator.className = 'drop-indicator';
+  indicator.style.cssText = `
+    position: absolute;
+    width: 2px;
+    height: 36px;
+    background-color: #3b82f6;
+    transition: all 0.2s ease;
+    pointer-events: none;
+    display: none;
+  `;
+  document.getElementById('tab-bar').appendChild(indicator);
+  return indicator;
+}
+
+function handleDragStart(e) {
+  draggedTab = e.target;
+  e.target.style.opacity = '0.5';
+  e.dataTransfer.effectAllowed = 'move';
+  e.dataTransfer.setData('text/plain', ''); // Required for Firefox
+  
+  // Create drop indicator if it doesn't exist
+  if (!dropIndicator) {
+    dropIndicator = createDropIndicator();
+  }
+}
+
+function handleDragEnd(e) {
+  draggedTab.style.opacity = '1';
+  draggedTab = null;
+  
+  // Hide drop indicator
+  if (dropIndicator) {
+    dropIndicator.style.display = 'none';
+  }
+  
+  // Remove any drag-over classes
+  const tabs = document.querySelectorAll('.tab');
+  tabs.forEach(tab => {
+    tab.classList.remove('drag-over');
+  });
+}
+
+function handleDragOver(e) {
+  if (e.preventDefault) {
+    e.preventDefault();
+  }
+  e.dataTransfer.dropEffect = 'move';
+  return false;
+}
+
+function handleDragEnter(e) {
+  const tab = e.target.closest('.tab');
+  if (tab && tab !== draggedTab) {
+    tab.classList.add('drag-over');
+    
+    // Position drop indicator
+    const rect = tab.getBoundingClientRect();
+    const tabBar = document.getElementById('tab-bar');
+    const tabBarRect = tabBar.getBoundingClientRect();
+    
+    // Determine if we should show indicator before or after the tab
+    const mouseX = e.clientX;
+    const tabCenterX = rect.left + rect.width / 2;
+    
+    if (mouseX < tabCenterX) {
+      dropIndicator.style.left = `${rect.left - tabBarRect.left}px`;
+    } else {
+      dropIndicator.style.left = `${rect.right - tabBarRect.left}px`;
+    }
+    
+    dropIndicator.style.top = `${rect.top - tabBarRect.top}px`;
+    dropIndicator.style.display = 'block';
+  }
+}
+
+function handleDragLeave(e) {
+  const tab = e.target.closest('.tab');
+  if (tab) {
+    tab.classList.remove('drag-over');
+  }
+}
+
+function handleDrop(e) {
+  e.stopPropagation();
+  e.preventDefault();
+  
+  const tab = e.target.closest('.tab');
+  if (!draggedTab || !tab || tab === draggedTab) {
+    return;
+  }
+  
+  // Determine drop position
+  const mouseX = e.clientX;
+  const rect = tab.getBoundingClientRect();
+  const tabCenterX = rect.left + rect.width / 2;
+  const dropAfter = mouseX > tabCenterX;
+  
+  // Get indices
+  const tabElements = Array.from(document.querySelectorAll('.tab'));
+  const fromIndex = tabElements.indexOf(draggedTab);
+  let toIndex = tabElements.indexOf(tab);
+  
+  if (dropAfter) {
+    toIndex++;
+  }
+  
+  // Update DOM
+  const tabBar = document.getElementById('tab-bar');
+  const plusButton = tabBar.querySelector('.plus-button');
+  tabBar.innerHTML = '';
+  
+  // Reorder tab elements
+  const reorderedElements = [...tabElements];
+  reorderedElements.splice(fromIndex, 1);
+  reorderedElements.splice(toIndex, 0, draggedTab);
+  reorderedElements.forEach(tab => tabBar.appendChild(tab));
+  tabBar.appendChild(plusButton);
+  
+  // Update tabs array order
+  const newTabs = [];
+  reorderedElements.forEach(tabElement => {
+    const tabId = tabElement.querySelector('.tab-close').onclick.toString().match(/'([^']+)'/)[1];
+    const originalTab = tabs.find(t => t.id === tabId);
+    if (originalTab) {
+      newTabs.push(originalTab);
+    }
+  });
+  tabs = newTabs;
+  
+  // Clean up
+  tab.classList.remove('drag-over');
+  if (dropIndicator) {
+    dropIndicator.style.display = 'none';
+  }
+}
+
+function updateTabAudioState(tabId, isPlaying) {
+  const tab = tabs.find(t => t.id === tabId);
+  if (!tab) return;
+
+  tab.isAudioPlaying = isPlaying;
+  
+  const mediaIndicator = tab.button.querySelector('.tab-media-indicator');
+  const favicon = tab.button.querySelector('.tab-favicon');
+  const volumeIcon = mediaIndicator.querySelector('.volume-icon');
+  
+  if (isPlaying || tab.isMuted) {
+    mediaIndicator.classList.remove('hidden');
+    favicon.classList.add('hidden');
+    
+    // Update volume icon based on muted state
+    if (tab.isMuted) {
+      volumeIcon.innerHTML = `
+        <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+        <line x1="22" y1="2" x2="16" y2="8"></line>
+        <line x1="16" y1="2" x2="22" y2="8"></line>
+      `;
+    } else {
+      volumeIcon.innerHTML = `
+        <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+        <path class="volume-waves" d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path>
+      `;
+    }
+  } else {
+    mediaIndicator.classList.add('hidden');
+    if (favicon.src) {
+      favicon.classList.remove('hidden');
+    }
+  }
+}
+
+function toggleMute(tabId) {
+  const tab = tabs.find(t => t.id === tabId);
+  if (!tab) return;
+
+  tab.isMuted = !tab.isMuted;
+  tab.webview.setAudioMuted(tab.isMuted);
+  updateTabAudioState(tabId, tab.isAudioPlaying);
 }
 
 function activateTab(tabId) {
