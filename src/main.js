@@ -5,6 +5,7 @@ const fs = require('fs');
 // Initialize storage
 const userDataPath = app.getPath('userData');
 const storePath = path.join(userDataPath, 'bookmarks.json');
+const historyStorePath = path.join(userDataPath, 'history.json');
 
 // Helper functions for storage
 function readStore() {
@@ -28,6 +29,27 @@ function writeStore(data) {
   }
 }
 
+function readHistory() {
+  try {
+    if (fs.existsSync(historyStorePath)) {
+      const data = fs.readFileSync(historyStorePath, 'utf8');
+      return JSON.parse(data);
+    }
+    return { entries: [] };
+  } catch (error) {
+    console.error('Error reading history:', error);
+    return { entries: [] };
+  }
+}
+
+function writeHistory(data) {
+  try {
+    fs.writeFileSync(historyStorePath, JSON.stringify(data, null, 2), 'utf8');
+  } catch (error) {
+    console.error('Error writing history:', error);
+  }
+}
+
 async function createWindow() {
   const mainWindow = new BrowserWindow({
     width: 1200,
@@ -45,6 +67,39 @@ async function createWindow() {
 }
 
 // Handle IPC calls
+ipcMain.handle('add-history-entry', async (event, entry) => {
+  const history = readHistory();
+  history.entries.unshift(entry); // Add to beginning of array
+  writeHistory(history);
+  return true;
+});
+
+ipcMain.handle('get-history', async () => {
+  const history = readHistory();
+  return history.entries;
+});
+
+ipcMain.handle('clear-history', async () => {
+  writeHistory({ entries: [] });
+  return true;
+});
+
+ipcMain.handle('delete-history-entry', async (event, url) => {
+  const history = readHistory();
+  history.entries = history.entries.filter(entry => entry.url !== url);
+  writeHistory(history);
+  return true;
+});
+
+ipcMain.handle('search-history', async (event, query) => {
+  const history = readHistory();
+  query = query.toLowerCase();
+  return history.entries.filter(entry => 
+    entry.title.toLowerCase().includes(query) || 
+    entry.url.toLowerCase().includes(query)
+  );
+});
+
 ipcMain.handle('create-tab', async (event, url) => {
   return 'tab-' + Date.now();
 });

@@ -23,11 +23,30 @@ contextBridge.exposeInMainWorld(
     onLoadingStateChange: (callback) => ipcRenderer.on('loading-state-changed', callback),
     onNavigationStateChange: (callback) => ipcRenderer.on('navigation-state-changed', callback),
 
+    // Cookie management
     getAllCookies: (url) => ipcRenderer.invoke('get-all-cookies', url),
     getCookie: (details) => ipcRenderer.invoke('get-cookie', details),
     setCookie: (details) => ipcRenderer.invoke('set-cookie', details),
     removeCookie: (details) => ipcRenderer.invoke('remove-cookie', details),
     removeAllCookies: () => ipcRenderer.invoke('remove-all-cookies'),
     setCookieRules: (rules) => ipcRenderer.invoke('set-cookie-rules', rules),
+
+    // History management
+    addHistoryEntry: (entry) => ipcRenderer.invoke('add-history-entry', entry),
+    getHistory: () => ipcRenderer.invoke('get-history'),
+    clearHistory: () => ipcRenderer.invoke('clear-history'),
+    deleteHistoryEntry: (url) => ipcRenderer.invoke('delete-history-entry', url),
+    searchHistory: (query) => ipcRenderer.invoke('search-history', query),
+
+    clearCache: () => ipcRenderer.invoke('clear-cache'),
+    clearStorageData: (options) => ipcRenderer.invoke('clear-storage-data', options),
+
+    // Extension management
+    installExtension: (extensionId) => ipcRenderer.invoke('install-extension', extensionId),
+    uninstallExtension: (extensionId) => ipcRenderer.invoke('uninstall-extension', extensionId),
+    getInstalledExtensions: () => ipcRenderer.invoke('get-installed-extensions'),
+    enableExtension: (extensionId) => ipcRenderer.invoke('enable-extension', extensionId),
+    disableExtension: (extensionId) => ipcRenderer.invoke('disable-extension', extensionId),
+    openChromeWebStore: () => ipcRenderer.invoke('open-chrome-web-store'),
   },
 );

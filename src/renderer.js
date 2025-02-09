@@ -2,6 +2,8 @@ let tabs = [];
 let activeTab = null;
 let bookmarks = [];
 let cookieManagerOpen = false;
+let historyPanelOpen = false;
+let menuOpen = false;
 
 // Load saved bookmarks
 async function loadBookmarks() {
@@ -20,6 +22,7 @@ async function createTab(url = 'https://www.google.com') {
   const tabButton = document.createElement('div');
   tabButton.className = 'tab flex items-center gap-2 px-4 py-2 bg-slate-100 hover:bg-slate-200 rounded-t-lg cursor-pointer transition-colors';
   tabButton.draggable = true; // Make tab draggable
+  tabButton.dataset.tabId = tabId;
   tabButton.innerHTML = `
       <span class="tab-media-indicator hidden">
         <button class="media-mute-button p-1 hover:bg-slate-300 rounded-full transition-colors">
@@ -38,6 +41,13 @@ async function createTab(url = 'https://www.google.com') {
           </svg>
       </button>
   `;
+
+  // Add event listeners
+  tabButton.querySelector('.tab-close').onclick = (e) => {
+    e.stopPropagation();
+    closeTab(tabId);
+  };
+
   tabButton.addEventListener('dragstart', handleDragStart);
   tabButton.addEventListener('dragend', handleDragEnd);
   tabButton.addEventListener('dragover', handleDragOver);
@@ -167,6 +177,7 @@ async function createTab(url = 'https://www.google.com') {
       if (tabId === activeTab) {
         document.getElementById('url-bar').value = e.url;
         updateBookmarkIcon();
+        addHistoryEntry(e.url, webview.getTitle() || 'Untitled');
       }
     });
 
@@ -322,7 +333,7 @@ function handleDrop(e) {
   // Update tabs array order
   const newTabs = [];
   reorderedElements.forEach(tabElement => {
-    const tabId = tabElement.querySelector('.tab-close').onclick.toString().match(/'([^']+)'/)[1];
+    const tabId = tabElement.dataset.tabId;
     const originalTab = tabs.find(t => t.id === tabId);
     if (originalTab) {
       newTabs.push(originalTab);
@@ -501,7 +512,8 @@ async function updateCookieList() {
       <div class="flex items-center gap-2 mb-2">
         <img src="${getFaviconFromDomain(domain)}" 
              class="w-4 h-4" 
-             onerror="this.src='data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 24 24%22><circle cx=%2212%22 cy=%2212%22 r=%2210%22 fill=%22%23ddd%22/></svg>'">
+             onerror="this.src='data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 24 24%22><circle cx=%2212%22 cy=%2212%22 r=%2210%22 fill=%22%23ddd%22/></svg>'"
+             alt="${domain} favicon">
         <div class="font-medium flex-1">${domain}</div>
         <div class="text-sm text-slate-500">${domainCookies.length}</div>
       </div>
@@ -533,7 +545,8 @@ async function updateCookieList() {
 }
 
 function getFaviconFromDomain(domain) {
-  return `https://${domain}/favicon.ico`;
+  const cleanDomain = domain.startsWith('.') ? domain.substring(1) : domain;
+  return `https://${cleanDomain}/favicon.ico`;
 }
 
 function filterCookies(searchTerm) {
@@ -549,6 +562,32 @@ function filterCookies(searchTerm) {
     }
   });
 }
+
+function toggleMenu() {
+  const dropdown = document.getElementById('menu-dropdown');
+  menuOpen = !menuOpen;
+  
+  if (menuOpen) {
+    dropdown.classList.remove('hidden');
+    // Close menu when clicking outside
+    document.addEventListener('click', closeMenuOnClickOutside);
+  } else {
+    dropdown.classList.add('hidden');
+    document.removeEventListener('click', closeMenuOnClickOutside);
+  }
+}
+
+function closeMenuOnClickOutside(event) {
+  const menuButton = document.getElementById('menu-button');
+  const dropdown = document.getElementById('menu-dropdown');
+  
+  if (!menuButton.contains(event.target) && !dropdown.contains(event.target)) {
+    dropdown.classList.add('hidden');
+    menuOpen = false;
+    document.removeEventListener('click', closeMenuOnClickOutside);
+  }
+}
+
 
 async function removeCookie(name, domain) {
   const webview = getActiveWebview();
@@ -587,6 +626,135 @@ function setupWebviewContainer() {
       activeWebview.focus();
     }
   });
+}
+
+// Toggle history panel
+function toggleHistory() {
+  const historyPanel = document.getElementById('history-panel');
+  const backdrop = document.getElementById('backdrop');
+  const bookmarksSection = document.getElementById('bookmarks-section');
+  const cookieManager = document.getElementById('cookie-manager');
+  
+  // Close other panels if open
+  if (bookmarksSection.classList.contains('open')) {
+    bookmarksSection.classList.remove('open');
+  }
+  if (cookieManager.classList.contains('open')) {
+    cookieManager.classList.remove('open');
+  }
+  
+  historyPanel.classList.toggle('translate-x-0');
+  backdrop.classList.toggle('active');
+  historyPanelOpen = !historyPanelOpen;
+  
+  if (historyPanelOpen) {
+    loadHistory();
+  }
+}
+
+// Add history entry
+async function addHistoryEntry(url, title) {
+  const entry = {
+    url,
+    title,
+    timestamp: new Date().toISOString(),
+  };
+  await window.electronAPI.addHistoryEntry(entry);
+}
+
+// Load and render history
+async function loadHistory(searchQuery = '') {
+  const entries = searchQuery ? 
+    await window.electronAPI.searchHistory(searchQuery) :
+    await window.electronAPI.getHistory();
+  
+  const container = document.getElementById('history-entries');
+  
+  // Group entries by date
+  const groupedEntries = groupEntriesByDate(entries);
+  
+  container.innerHTML = Object.entries(groupedEntries).map(([date, entries]) => `
+    <div class="mb-6">
+      <h4 class="text-sm font-medium text-slate-500 mb-2">${date}</h4>
+      ${entries.map(entry => `
+        <div class="history-entry flex items-center gap-2 p-2 rounded-lg hover:bg-slate-100 cursor-pointer group"
+             onclick="navigateToHistoryEntry('${entry.url}')"
+             title="${entry.url}">
+          <div class="history-icon w-6 h-6 flex items-center justify-center bg-slate-200 rounded">
+            <img src="${getFaviconUrl(entry.url)}"
+                 onerror="this.src='data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 24 24%22><path fill=%22none%22 stroke=%22currentColor%22 stroke-width=%222%22 d=%22M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z%22/></svg>'"
+                 class="w-4 h-4"
+                 alt="${entry.title}">
+          </div>
+          <div class="flex-1 min-w-0">
+            <div class="text-sm truncate">${entry.title}</div>
+            <div class="text-xs text-slate-500 truncate">${entry.url}</div>
+          </div>
+          <button 
+            onclick="event.stopPropagation(); deleteHistoryEntry('${entry.url}')"
+            class="delete-history ml-2 opacity-0 group-hover:opacity-100 p-1 hover:bg-slate-200 rounded transition-opacity"
+            title="Delete from history">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-red-500">
+              <path d="M3 6h18"></path>
+              <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"></path>
+            </svg>
+          </button>
+        </div>
+      `).join('')}
+    </div>
+  `).join('');
+}
+
+// Group history entries by date
+function groupEntriesByDate(entries) {
+  const groups = {};
+  const today = new Date().toLocaleDateString();
+  const yesterday = new Date(Date.now() - 86400000).toLocaleDateString();
+  
+  entries.forEach(entry => {
+    const date = new Date(entry.timestamp);
+    const dateStr = date.toLocaleDateString();
+    
+    let groupKey;
+    if (dateStr === today) {
+      groupKey = 'Today';
+    } else if (dateStr === yesterday) {
+      groupKey = 'Yesterday';
+    } else {
+      groupKey = dateStr;
+    }
+    
+    if (!groups[groupKey]) {
+      groups[groupKey] = [];
+    }
+    groups[groupKey].push(entry);
+  });
+  
+  return groups;
+}
+
+// Navigate to history entry
+async function navigateToHistoryEntry(url) {
+  const webview = getActiveWebview();
+  if (webview) {
+    await window.electronAPI.navigateToUrl(activeTab, url);
+    webview.loadURL(url);
+    toggleHistory();
+  }
+}
+
+// Delete history entry
+async function deleteHistoryEntry(url) {
+  await window.electronAPI.deleteHistoryEntry(url);
+  loadHistory();
+}
+
+// Clear all history
+async function clearHistory() {
+  if (confirm('Are you sure you want to clear all browsing history?')) {
+    await window.electronAPI.clearHistory();
+    loadHistory();
+  }
 }
 
 async function closeTab(tabId) {
@@ -666,11 +834,22 @@ async function navigateToUrl(input) {
 }
 
 function handleBackdropClick(event) {
+  const historyPanel = document.getElementById('history-panel');
   const bookmarksSection = document.getElementById('bookmarks-section');
   const cookieManager = document.getElementById('cookie-manager');
   const backdrop = document.getElementById('backdrop');
+  const dropdown = document.getElementById('menu-dropdown');
+  
+  // Close the menu dropdown if it's open
+  if (menuOpen) {
+    dropdown.classList.add('hidden');
+    menuOpen = false;
+  }
   
   // Check which panel is open and close it
+  if (historyPanel.classList.contains('translate-x-0')) {
+    toggleHistory();
+  }
   if (bookmarksSection.classList.contains('open')) {
     toggleBookmarks();
   }
@@ -756,7 +935,8 @@ function renderBookmarks() {
       <div class="bookmark-icon w-6 h-6 flex items-center justify-center bg-slate-200 rounded">
         <img src="${getFaviconUrl(bookmark.url)}" 
              onerror="this.src='data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%2216%22 height=%2216%22 viewBox=%220 0 24 24%22 fill=%22none%22 stroke=%22currentColor%22 stroke-width=%222%22><path d=%22M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z%22/></svg>'"
-             class="w-4 h-4">
+             class="w-4 h-4"
+             alt="${bookmark.title}">
       </div>
       <span class="bookmark-title text-sm truncate">${bookmark.title}</span>
       <button 
@@ -776,11 +956,14 @@ function renderBookmarks() {
 function getFaviconUrl(url) {
   try {
     const urlObj = new URL(url);
+    // Return the favicon URL with the same protocol as the original URL
     return `${urlObj.protocol}//${urlObj.hostname}/favicon.ico`;
   } catch (e) {
-    return '';
+    // Return a fallback data URL for invalid URLs
+    return 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>';
   }
 }
+
 async function navigateToBookmark(url) {
   const webview = getActiveWebview();
   if (webview) {
@@ -798,6 +981,11 @@ document.addEventListener('DOMContentLoaded', async () => {
   const urlBar = document.getElementById('url-bar');
   urlBar.addEventListener('click', () => {
     urlBar.select();
+  });
+
+  const historySearch = document.getElementById('history-search');
+  historySearch.addEventListener('input', (e) => {
+    loadHistory(e.target.value);
   });
   
   urlBar.form?.addEventListener('submit', (e) => {

@@ -1,17 +1,21 @@
 {
     "name": "zephyros",
-    "version": "0.0.1",
+    "version": "0.0.2",
+    "description": "Browser made using Electron",
     "main": "src/main.js",
     "scripts": {
-        "start": "electron ."
+        "start": "electron .",
+        "build": "electron-builder"
     },
     "dependencies": {
         "@tailwindcss/cli": "^4.0.0",
-        "electron": "^28.0.0",
-        "electron-store": "^10.0.0"
+        "electron-dl": "^4.0.0",
+        "electron-store": "^10.0.1",
+        "node-fetch": "^2.7.0"
     },
     "devDependencies": {
         "autoprefixer": "^10.4.20",
+        "electron": "^28.0.0",
         "electron-builder": "^25.1.8",
         "postcss": "^8.5.1",
         "tailwindcss": "^4.0.0"
@@ -26,6 +30,7 @@
         "files": [
             "build/**/*",
             "node_modules/**/*",
+            "src/**/*",
             "package.json"
         ],
         "win": {
@@ -37,24 +42,27 @@
         "nsis": {
             "oneClick": false,
             "allowToChangeInstallationDirectory": true,
-            "installerIcon": "build/installer.ico",
-            "uninstallerIcon": "build/uninstaller.ico",
+            "installerIcon": "build/icon.ico",
+            "uninstallerIcon": "build/icon.ico",
             "license": "build/license.txt",
             "createDesktopShortcut": "always",
             "createStartMenuShortcut": true,
             "shortcutName": "Zephyros"
-          },
-          "mac": {
+        },
+        "mac": {
             "target": "dmg",
             "icon": "build/icon.icns",
             "hardenedRuntime": true,
             "entitlements": "build/entitlements.plist",
             "entitlementsInherit": "build/entitlements.plist"
-          },
-          "linux": {
-            "target": ["AppImage", "deb"],
+        },
+        "linux": {
+            "target": [
+                "AppImage",
+                "deb"
+            ],
             "icon": "build/icons",
             "category": "Utility"
-          }
+        }
     }
 }
